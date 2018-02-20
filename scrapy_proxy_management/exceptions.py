@@ -1,0 +1,2 @@
+class MongoDBAuthenticateException(Exception):
+    pass
