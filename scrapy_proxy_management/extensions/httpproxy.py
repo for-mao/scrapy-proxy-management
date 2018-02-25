@@ -1,4 +1,3 @@
-import base64
 import logging
 from itertools import cycle
 from itertools import starmap
@@ -10,6 +9,7 @@ from urllib.parse import urlunparse
 from urllib.request import _parse_proxy
 from urllib.request import getproxies
 
+import base64
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
@@ -73,7 +73,10 @@ class EnvironmentProxyStorage(ProxyStorage):
     def invalidate_proxy(self, spider: Spider):
         raise NotImplementedError
 
-    def retrieve_proxy(self, scheme: str) -> Generator[
+    def retrieve_proxy(self, scheme: str) -> Tuple[bytes, str]:
+        return next(self._retrieve_proxy(scheme))
+
+    def _retrieve_proxy(self, scheme: str) -> Generator[
         Tuple[bytes, str], None, None
     ]:
         yield from self.proxies[scheme]

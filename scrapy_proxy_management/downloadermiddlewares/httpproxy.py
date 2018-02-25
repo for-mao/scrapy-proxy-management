@@ -93,7 +93,7 @@ class HttpProxyMiddleware(object):
             self._set_proxy(request, scheme)
 
     def _set_proxy(self, request: Request, scheme: str):
-        credentials, proxy = next(self.storage.retrieve_proxy(scheme))
+        credentials, proxy = self.storage.retrieve_proxy(scheme)
         request.meta['proxy'] = proxy
         if credentials:
             request.headers['Proxy-Authorization'] = b'Basic ' + credentials
