@@ -4,7 +4,7 @@ from unittest import TestCase
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
-from scrapy_proxy_management.extensions.httpproxy import ProxyStorage
+from scrapy_proxy_management.extensions.environment_http_proxy import ProxyStorage
 
 
 class ProxyStorageTest(TestCase):

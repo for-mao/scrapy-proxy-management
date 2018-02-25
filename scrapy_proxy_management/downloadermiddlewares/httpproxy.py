@@ -14,10 +14,10 @@ from scrapy.statscollectors import StatsCollector
 from scrapy.utils.httpobj import urlparse_cached
 from scrapy.utils.misc import load_object
 
-from ..extensions.httpproxy import ProxyStorage
+from . import unfreeze_settings
+from ..extensions.environment_http_proxy import ProxyStorage
 from ..settings import default_settings
 from ..signals import proxy_invalidated
-from ..utils import unfreeze_settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +30,15 @@ class HttpProxyMiddleware(object):
         self.auth_encoding: str = auth_encoding
         self.stats: StatsCollector = crawler.stats
 
-        with unfreeze_settings(self.settings):
-            self.settings.setmodule(
+        with unfreeze_settings(self.settings) as settings:
+            settings.setmodule(
                 module=default_settings,
                 priority=SETTINGS_PRIORITIES['default']
             )
 
         self.storage: ProxyStorage = load_object(
-            self.settings['HTTPPROXY_STORAGE'])(
-            settings=self.settings,
-            auth_encoding=self.auth_encoding
-        )
+            self.settings['HTTPPROXY_STORAGE']
+        )(settings=self.settings, auth_encoding=self.auth_encoding)
 
     @classmethod
     def from_crawler(cls, crawler: Crawler):
