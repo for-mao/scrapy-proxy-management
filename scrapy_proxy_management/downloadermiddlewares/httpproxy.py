@@ -1,5 +1,4 @@
 import logging
-from urllib.request import proxy_bypass
 
 from scrapy.crawler import Crawler
 from scrapy.exceptions import NotConfigured
@@ -61,7 +60,9 @@ class HttpProxyMiddleware(object):
 
     def proxy_invalidated(self, request: Request, response: Response,
                           spider: Spider):
-        self.storage.invalidate_proxy(spider=spider)
+        self.storage.invalidate_proxy(
+            request=request, response=response, spider=spider
+        )
         self.stats.inc_value('proxy_invalidated', spider=spider)
 
     def process_request(self, request: Request, spider: Spider):
@@ -84,7 +85,10 @@ class HttpProxyMiddleware(object):
         scheme = parsed.scheme
 
         # 'no_proxy' is only supported by http schemes
-        if scheme in ('http', 'https') and proxy_bypass(parsed.hostname):
+        if all((
+                scheme in ('http', 'https'),
+                self.storage.proxy_bypass(parsed.hostname)
+        )):
             return
 
         if scheme in self.storage.proxies:

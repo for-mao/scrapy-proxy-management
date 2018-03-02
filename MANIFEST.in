@@ -1,0 +1,2 @@
+include versioneer.py
+include scrapy_proxy_management/_version.py

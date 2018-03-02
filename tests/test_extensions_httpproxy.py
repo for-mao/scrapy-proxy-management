@@ -1,10 +1,13 @@
-import base64
 from unittest import TestCase
 
+import base64
+
+from scrapy import Request
+from scrapy.http import Response
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
-from scrapy_proxy_management.extensions.environment_http_proxy import ProxyStorage
+from scrapy_proxy_management.extensions import ProxyStorage
 
 
 class ProxyStorageTest(TestCase):
@@ -75,6 +78,8 @@ class ProxyStorageTest(TestCase):
         self.assertRaises(
             NotImplementedError,
             self.storage.invalidate_proxy,
+            request=Request('http://test.usage'),
+            response=Response('http://test.usage'),
             spider=spider
         )
 

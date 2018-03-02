@@ -1,10 +1,12 @@
+import base64
 import logging
 from typing import Tuple
 from urllib.parse import unquote
 from urllib.parse import urlunparse
 from urllib.request import _parse_proxy
 
-import base64
+from scrapy.http import Request
+from scrapy.http import Response
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
@@ -24,7 +26,12 @@ class ProxyStorage(object):
     def close_spider(self, spider: Spider):
         raise NotImplementedError
 
-    def invalidate_proxy(self, spider: Spider):
+    def invalidate_proxy(
+            self, request: Request, response: Response, spider: Spider
+    ):
+        raise NotImplementedError
+
+    def proxy_bypass(self, host: str, proxies=None) -> bool:
         raise NotImplementedError
 
     def retrieve_proxy(self, scheme: str) -> Tuple[bytes, str]:
