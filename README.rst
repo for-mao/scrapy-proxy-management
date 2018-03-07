@@ -39,7 +39,7 @@ Requirements
 * Tests on Python 3.6
 
 * Tests on Linux, but it's a pure python module - it should work on any other
-platforms with official python supported, e.g. Windows, Mac OSX, BSD
+  platforms with official python supported, e.g. Windows, Mac OSX, BSD
 
 Installation
 ============
