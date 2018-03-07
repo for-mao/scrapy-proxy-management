@@ -4,24 +4,21 @@ from typing import Tuple
 from urllib.request import getproxies
 from urllib.request import proxy_bypass
 
-from scrapy.http import Request
-from scrapy.http import Response
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
-from . import ProxyStorage
+from . import BaseProxyStorage
 
 
-class EnvironmentProxyStorage(ProxyStorage):
-    def __init__(self, settings: Settings, auth_encoding: str):
-        super(EnvironmentProxyStorage, self).__init__(settings, auth_encoding)
+class EnvironmentProxyStorage(BaseProxyStorage):
+    def __init__(self, settings: Settings, auth_encoding: str, mw):
+        super().__init__(settings, auth_encoding, mw)
 
-        self.proxies: Dict[str, Tuple[bytes, str]] = dict(starmap(
-            lambda type_, url: (type_, self._get_proxy(url, type_)),
-            getproxies().items()
-        ))
+        self.proxies: Dict[str, Tuple[bytes, str]] = None
 
     def open_spider(self, spider: Spider):
+        self._load_proxies()
+
         self.log.info(
             'Proxy storage by environment variables is opening.'
         )
@@ -29,13 +26,16 @@ class EnvironmentProxyStorage(ProxyStorage):
     def close_spider(self, spider: Spider):
         self.log.info('Proxy storage by environment variables is closed')
 
-    def invalidate_proxy(
-            self, request: Request, response: Response, spider: Spider
-    ):
-        raise NotImplementedError
+    def proxy_bypass(self, host: str, proxies=None) -> bool:
+        return proxy_bypass(host=host, proxies=proxies)
 
     def retrieve_proxy(self, scheme: str) -> Tuple[bytes, str]:
         return self.proxies[scheme]
 
-    def proxy_bypass(self, host: str, proxies=None) -> bool:
-        return proxy_bypass(host=host, proxies=proxies)
+    def _load_proxies(self):
+        self.proxies: Dict[str, Tuple[bytes, str]] = dict(starmap(
+            lambda type_, url: (
+                type_, self._get_proxy(url, type_)
+            ),
+            getproxies().items()
+        ))

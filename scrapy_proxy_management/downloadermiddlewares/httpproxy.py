@@ -3,7 +3,6 @@ import logging
 from scrapy.crawler import Crawler
 from scrapy.exceptions import NotConfigured
 from scrapy.http import Request
-from scrapy.http import Response
 from scrapy.settings import SETTINGS_PRIORITIES
 from scrapy.settings import Settings
 from scrapy.signals import spider_closed
@@ -14,7 +13,7 @@ from scrapy.utils.httpobj import urlparse_cached
 from scrapy.utils.misc import load_object
 
 from . import unfreeze_settings
-from ..extensions.environment_http_proxy import ProxyStorage
+from ..extensions.environment_http_proxy import BaseProxyStorage
 from ..settings import default_settings
 from ..signals import proxy_invalidated
 
@@ -35,9 +34,11 @@ class HttpProxyMiddleware(object):
                 priority=SETTINGS_PRIORITIES['default']
             )
 
-        self.storage: ProxyStorage = load_object(
-            self.settings['HTTPPROXY_STORAGE']
-        )(settings=self.settings, auth_encoding=self.auth_encoding)
+        cls_storage = load_object(self.settings['HTTPPROXY_STORAGE'])
+
+        self.storage: BaseProxyStorage = cls_storage.from_crawler(
+            crawler=self.crawler, auth_encoding=self.auth_encoding, mw=self
+        )
 
     @classmethod
     def from_crawler(cls, crawler: Crawler):
@@ -47,7 +48,7 @@ class HttpProxyMiddleware(object):
         obj = cls(crawler, crawler.settings.get('HTTPPROXY_AUTH_ENCODING'))
 
         crawler.signals.connect(obj.spider_opened, signal=spider_opened)
-        crawler.signals.connect(obj.spider_close, signal=spider_closed)
+        crawler.signals.connect(obj.spider_closed, signal=spider_closed)
         crawler.signals.connect(obj.proxy_invalidated, signal=proxy_invalidated)
 
         return obj
@@ -55,15 +56,8 @@ class HttpProxyMiddleware(object):
     def spider_opened(self, spider: Spider):
         self.storage.open_spider(spider)
 
-    def spider_close(self, spider: Spider):
+    def spider_closed(self, spider: Spider):
         self.storage.close_spider(spider)
-
-    def proxy_invalidated(self, request: Request, response: Response,
-                          spider: Spider):
-        self.storage.invalidate_proxy(
-            request=request, response=response, spider=spider
-        )
-        self.stats.inc_value('proxy_invalidated', spider=spider)
 
     def process_request(self, request: Request, spider: Spider):
         # ignore if proxy is already set
@@ -93,6 +87,12 @@ class HttpProxyMiddleware(object):
 
         if scheme in self.storage.proxies:
             self._set_proxy(request, scheme)
+        else:
+            return
+
+    def proxy_invalidated(self, spider: Spider, request: Request, **kwargs):
+        self.storage.invalidate_proxy(spider, request, **kwargs)
+        self.stats.inc_value('proxy_invalidated', spider=spider)
 
     def _set_proxy(self, request: Request, scheme: str):
         credentials, proxy = self.storage.retrieve_proxy(scheme)

@@ -3,48 +3,65 @@ from itertools import cycle
 from itertools import starmap
 from typing import Dict
 from typing import Generator
+from typing import Iterator
 from typing import List
 from typing import Tuple
 from urllib.parse import splitport
 
-from scrapy.http import Request
-from scrapy.http import Response
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 
-from . import ProxyStorage
+from . import BaseProxyStorage
 
 
-class SettingsProxyStorage(ProxyStorage):
-    def __init__(self, settings: Settings, auth_encoding: str):
-        super(SettingsProxyStorage, self).__init__(settings, auth_encoding)
+class SettingsProxyStorage(BaseProxyStorage):
+    def __init__(self, settings: Settings, auth_encoding: str, mw):
+        super().__init__(settings, auth_encoding, mw)
 
-        self._proxies: Dict[str, List[Tuple[bytes, str]]] = self._get_proxies()
-
-        self.proxies: Dict[
-            str, Generator[Tuple[bytes, str], None, None]
-        ] = dict(starmap(lambda k, v: (k, cycle(v)), self._proxies.items()))
+        self._proxies: Dict[str, List[Tuple[bytes, str]]] = None
+        self.proxies: Dict[str, Iterator[Tuple[bytes, str], None, None]] = None
 
     def open_spider(self, spider: Spider):
+        self._load_proxies()
         self.log.info('Proxy storage by settings is opening.')
 
     def close_spider(self, spider: Spider):
         self.log.info('Proxy storage by settings is closed')
 
-    def invalidate_proxy(
-            self, request: Request, response: Response, spider: Spider
-    ):
-        raise NotImplementedError
+    def proxy_bypass(self, host: str, proxies=None) -> bool:
+        """Test if proxies should not be used for a particular host.
+
+        Checks the proxy dict for the value of no_proxy, which should
+        be a list of comma separated DNS suffixes, or '*' for all hosts.
+
+        """
+        if proxies is None:
+            proxies = self._proxies
+
+        # don't bypass, if no_proxy isn't specified
+        try:
+            no_proxy: List = proxies['no']
+        except KeyError:
+            return False
+
+        # '*' is special case for always bypass
+        if '*' in no_proxy:
+            return True
+
+        # strip port off host
+        host_only, port = splitport(host)
+
+        for pattern in no_proxy:
+            if any(map(lambda x: pattern.match(x), [host_only, host])):
+                return True
+
+        # otherwise, don't bypass
+        return False
 
     def retrieve_proxy(self, scheme: str) -> Tuple[bytes, str]:
-        return next(self._retrieve_proxy(scheme))
+        return next(self.proxies[scheme])
 
-    def _retrieve_proxy(
-            self, scheme: str
-    ) -> Generator[Tuple[bytes, str], None, None]:
-        yield from self.proxies[scheme]
-
-    def _get_proxies(self):
+    def _get_proxies(self) -> Dict:
         _proxies = {}
 
         for type_, proxies in self.settings['HTTPPROXY_PROXIES'].items():
@@ -68,38 +85,8 @@ class SettingsProxyStorage(ProxyStorage):
 
         return _proxies
 
-    def proxy_bypass(self, host: str, proxies=None) -> bool:
-        return self._proxy_bypass(
-            host=host,
-            proxies=proxies if proxies else None
-        )
-
-    def _proxy_bypass(self, host: str, proxies=None) -> bool:
-        """Test if proxies should not be used for a particular host.
-
-        Checks the proxy dict for the value of no_proxy, which should
-        be a list of comma separated DNS suffixes, or '*' for all hosts.
-
-        """
-        if proxies is None:
-            proxies = self._proxies
-
-        # don't bypass, if no_proxy isn't specified
-        try:
-            no_proxy: List = proxies['no']
-        except KeyError:
-            return False
-        else:
-            # '*' is special case for always bypass
-            if '*' in no_proxy:
-                return True
-            else:
-                # strip port off host
-                host_only, port = splitport(host)
-
-                for pattern in no_proxy:
-                    if any(map(lambda x: pattern.match(x), [host_only, host])):
-                        return True
-                else:
-                    # otherwise, don't bypass
-                    return False
+    def _load_proxies(self):
+        self._proxies: Dict[str, List[Tuple[bytes, str]]] = self._get_proxies()
+        self.proxies: Dict[
+            str, Generator[Tuple[bytes, str], None, None]
+        ] = dict(starmap(lambda k, v: (k, cycle(v)), self._proxies.items()))
