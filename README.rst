@@ -29,8 +29,8 @@ Scrapy Proxy Management
 Overview
 ========
 
-Scrapy is a great framework for web crawling. This downloader middleware
-provides a user-agent rotation based on the settings in settings.py, spider,
+Scrapy is a great framework for web crawling. This middleware provides a proxy
+rotation from many sources which define in the settings in settings.py, spider,
 request.
 
 Requirements
