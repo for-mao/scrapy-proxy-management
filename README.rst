@@ -80,7 +80,7 @@ settings.py
 ---------------------
 
 This way allows scrapy using the proxies defined in the settings.py. This
-middleware would use the proxies in a endless cycle::
+middleware would use the proxies in an endless cycle::
 
    # ---------------------------------------------------------------------------
    # Proxy Management

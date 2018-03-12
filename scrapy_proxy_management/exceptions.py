@@ -1,2 +1,1 @@
-class MongoDBAuthenticateException(Exception):
-    pass
+

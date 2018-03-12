@@ -3,6 +3,7 @@ import logging
 from scrapy.crawler import Crawler
 from scrapy.exceptions import NotConfigured
 from scrapy.http import Request
+from scrapy.http import Response
 from scrapy.settings import SETTINGS_PRIORITIES
 from scrapy.settings import Settings
 from scrapy.signals import spider_closed
@@ -12,16 +13,15 @@ from scrapy.statscollectors import StatsCollector
 from scrapy.utils.httpobj import urlparse_cached
 from scrapy.utils.misc import load_object
 
-from . import unfreeze_settings
 from ..extensions.environment_http_proxy import BaseProxyStorage
 from ..settings import default_settings
 from ..signals import proxy_invalidated
+from ..utils import unfreeze_settings
 
 logger = logging.getLogger(__name__)
 
 
 class HttpProxyMiddleware(object):
-
     def __init__(self, crawler: Crawler, auth_encoding: str = 'latin-1'):
         self.crawler: Crawler = crawler
         self.settings: Settings = crawler.settings
@@ -90,9 +90,35 @@ class HttpProxyMiddleware(object):
         else:
             return
 
-    def proxy_invalidated(self, spider: Spider, request: Request, **kwargs):
-        self.storage.invalidate_proxy(spider, request, **kwargs)
-        self.stats.inc_value('proxy_invalidated', spider=spider)
+    def proxy_invalidated(
+            self, request: Request = None, response: Response = None,
+            exception: Exception = None, spider: Spider = None, **kwargs
+    ):
+        try:
+            self.storage.invalidate_proxy(
+                request, response, exception, spider, **kwargs
+            )
+        except NotImplementedError:
+            raise NotImplementedError
+        else:
+            if request:
+                logger.debug(
+                    'Proxy %s is invalidated because of %s',
+                    request.meta['proxy'],
+                    str(exception)
+                )
+                self.storage.invalidate_proxy(
+                    request, response, exception, spider, **kwargs
+                )
+            elif response:
+                logger.debug(
+                    'Proxy %s is invalidated because of %s',
+                    response.request.meta['proxy'],
+                    str(exception)
+                )
+                self.storage.invalidate_proxy(
+                    response.request, response, exception, spider, **kwargs
+                )
 
     def _set_proxy(self, request: Request, scheme: str):
         credentials, proxy = self.storage.retrieve_proxy(scheme)

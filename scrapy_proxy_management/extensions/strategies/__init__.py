@@ -2,7 +2,10 @@ import logging
 from abc import ABCMeta
 from abc import abstractmethod
 
+from scrapy.http import Request
+from scrapy.http import Response
 from scrapy.settings import Settings
+from scrapy.spiders import Spider
 
 from .. import BaseProxyStorage
 
@@ -30,7 +33,8 @@ class BaseProxyManagementStrategy(metaclass=ABCMeta):
 
     @abstractmethod
     def invalidate_proxy(
-            self, proxy: str, scheme: str, credential: bytes = None
+            self, request: Request, response: Response, exception: Exception,
+            spider: Spider, **kwargs
     ):
         pass
 

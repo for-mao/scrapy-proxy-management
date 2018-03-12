@@ -1,3 +1,4 @@
+import logging
 import re
 from itertools import cycle
 from itertools import starmap
@@ -13,6 +14,8 @@ from scrapy.spiders import Spider
 
 from . import BaseProxyStorage
 
+logger = logging.getLogger(__name__)
+
 
 class SettingsProxyStorage(BaseProxyStorage):
     def __init__(self, settings: Settings, auth_encoding: str, mw):
@@ -23,10 +26,19 @@ class SettingsProxyStorage(BaseProxyStorage):
 
     def open_spider(self, spider: Spider):
         self._load_proxies()
-        self.log.info('Proxy storage by settings is opening.')
+
+        logger.info('Proxy storage by settings is opening.')
+
+        for scheme, proxies in self._proxies.items():
+            logger.info(
+                'Loaded %s %s proxies from settings.py', len(proxies), scheme
+            )
+            self.stats.set_value(
+                'proxy/{scheme}'.format(scheme=scheme), len(proxies)
+            )
 
     def close_spider(self, spider: Spider):
-        self.log.info('Proxy storage by settings is closed')
+        logger.info('Proxy storage by settings is closed')
 
     def proxy_bypass(self, host: str, proxies=None) -> bool:
         """Test if proxies should not be used for a particular host.

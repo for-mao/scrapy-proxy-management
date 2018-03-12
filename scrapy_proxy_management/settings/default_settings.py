@@ -25,7 +25,7 @@ HTTPPROXY_PROXIES = {
 # MongoDB Proxy Storage
 # ------------------------------------------------------------------------------
 
-# HTTPPROXY_STORAGE = 'scrapy_proxy_management.extensions.mongodb_http_proxy.MongoDBProxyStorage'
+# HTTPPROXY_STORAGE = 'scrapy_proxy_management.extensions.mongodb_http_proxy.MongoDBSyncProxyStorage'
 
 # HTTPPROXY_MONGODB_USERNAME =
 # HTTPPROXY_MONGODB_PASSWORD =

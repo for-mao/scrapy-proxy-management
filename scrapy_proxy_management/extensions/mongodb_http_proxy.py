@@ -1,3 +1,4 @@
+import logging
 import re
 from collections import defaultdict
 from functools import partial
@@ -10,12 +11,13 @@ from typing import List
 from typing import Set
 from typing import Tuple
 from urllib.parse import splitport
-from urllib.parse import urlparse
+from urllib.parse import urlunparse
 
 from pymongo import MongoClient
 from pymongo.collection import Collection as CollectionSync
 from pymongo.database import Database as DatabaseSync
-from scrapy.http import Request
+from scrapy.http import Request, Response
+from scrapy.settings import SETTINGS_PRIORITIES
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
 from scrapy.utils.misc import load_object
@@ -23,6 +25,9 @@ from scrapy.utils.misc import load_object
 from . import BaseProxyStorage
 from . import basic_auth_header
 from ..extensions.strategies import BaseProxyManagementStrategy
+from ..utils import unfreeze_settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_proxy_from_doc(
@@ -37,20 +42,32 @@ def get_proxy_from_doc(
     return credentials, proxy_url
 
 
+def get_proxy_from_doc_2(
+        doc: Dict, orig_type: str, auth_encoding: str
+) -> Tuple[bytes, str]:
+    credentials = basic_auth_header(
+        doc['username'], doc.get('password', ''), auth_encoding
+    ) if doc.get('username') else None
+
+    proxy_url: str = urlunparse((
+        doc['scheme'], '{}:{}'.format(doc['ip'], str(doc['port'])),
+        '', '', '', ''
+    ))
+
+    return credentials, proxy_url
+
+
 class MongoDBSyncProxyStorage(BaseProxyStorage):
     def __init__(self, settings: Settings, auth_encoding: str, mw):
         super().__init__(settings, auth_encoding, mw)
 
-        self.mongodb_settings: Dict = dict(starmap(
-            lambda k, v: (k.replace('HTTPPROXY_MONGODB_', '').lower(), v),
-            filter(lambda x: x[0].startswith('HTTPPROXY_MONGODB_'),
-                   self.settings.items())
-        ))
+        self.mongodb_settings: Dict = self._get_mongodb_settings()
 
         self.not_mongoclient_parameters = self.mongodb_settings.get(
             'not_mongoclient_parameters'
         )
 
+        self.uri: str = None
         self.conn: MongoClient = None
         self.db: DatabaseSync = None
         self.coll: CollectionSync = None
@@ -70,40 +87,59 @@ class MongoDBSyncProxyStorage(BaseProxyStorage):
 
         self._proxies: Dict[str, List[Tuple[bytes, str]]] = None
         self.proxies: Dict[str, Iterator[Tuple[bytes, str], None, None]] = None
-        self.invalidate_proxies: Set[Tuple[str, bytes, str]] = set()
+        self.proxies_invalidated: Set[Tuple[str, bytes, str]] = set()
 
     def open_spider(self, spider: Spider):
         self.conn: MongoClient = MongoClient(**{
             **self._prepare_conn_args(), 'appname': spider.name
         })
 
+        self.uri = urlunparse((
+            'mongodb', ':'.join(map(lambda x: str(x), self.conn.address)),
+            '', '', '', ''
+        ))
         self.db = self.conn.get_database(self.mongodb_settings['database'])
         self.coll = self.db.get_collection(self.mongodb_settings['collection'])
 
         self.strategy.open_spider()
 
         if self.mongodb_settings.get('username'):
-            self.log.info(
-                'Proxy storage in MongoDB database %s is open, '
-                'authorized by %s.',
+            logger.info(
+                '%s (%s) is opened with authSource "%s", authorized by "%s"',
+                self.__class__.__name__,
+                self.uri,
                 self.mongodb_settings['authsource'],
                 self.mongodb_settings['username']
             )
         else:
-            self.log.info(
-                'Proxy storage in MongoDB database %s is open.',
+            logger.info(
+                'Proxy storage in MongoDB database %s is open',
                 self.mongodb_settings['authsource'],
+            )
+
+        for scheme, proxies in self._proxies.items():
+            logger.info(
+                'Loaded %s %s proxies from %s (%s)',
+                len(proxies),
+                scheme,
+                self.settings['HTTPPROXY_STORAGE'].rsplit('.', 1)[-1],
+                self.uri,
+            )
+            self.mw.stats.set_value(
+                'proxy/{scheme}'.format(scheme=scheme), len(proxies)
             )
 
     def close_spider(self, spider: Spider):
         self.strategy.close_spider()
         self.conn.close()
+        logger.info('%s (%s) is closed', self.__class__.__name__, self.uri)
 
-    def invalidate_proxy(self, spider: Spider, request: Request, **kwargs):
+    def invalidate_proxy(
+            self, request: Request = None, response: Response = None,
+            exception: Exception = None, spider: Spider = None, **kwargs
+    ):
         self.strategy.invalidate_proxy(
-            request.meta['proxy'],
-            urlparse(request.url).scheme,
-            request.headers.get('Proxy-Authorization'),
+            request, response, exception, spider, **kwargs
         )
 
     def proxy_bypass(self, host: str, proxies=None) -> bool:
@@ -140,7 +176,19 @@ class MongoDBSyncProxyStorage(BaseProxyStorage):
         try:
             return next(self.proxies[scheme])
         except StopIteration:
+            logger.debug('Proxies for %s exhausted, reload now', scheme)
+
             self.strategy.reload_proxies()
+
+            for scheme, proxies in self._proxies.items():
+                logger.debug(
+                    'Loaded %s %s proxies from %s (%s)',
+                    len(proxies),
+                    scheme,
+                    self.settings['HTTPPROXY_STORAGE'].rsplit('.', 1)[-1],
+                    self.uri,
+                )
+
             return next(self.proxies[scheme])
 
     def _get_proxies(self) -> Dict[str, List[Tuple[bytes, str]]]:
@@ -172,4 +220,22 @@ class MongoDBSyncProxyStorage(BaseProxyStorage):
         return dict(filter(
             lambda x: x[0] not in self.not_mongoclient_parameters,
             self.mongodb_settings.items()
+        ))
+
+    def _get_mongodb_settings(self) -> Dict:
+        if (
+                self.settings.getpriority(
+                    'HTTPPROXY_MONGODB_AUTHSOURCE'
+                ) == SETTINGS_PRIORITIES['default']
+        ):
+            with unfreeze_settings(self.settings) as settings:
+                self.settings.set(
+                    'HTTPPROXY_MONGODB_AUTHSOURCE',
+                    self.settings.get('HTTPPROXY_MONGODB_DATABASE')
+                )
+
+        return dict(starmap(
+            lambda k, v: (k.replace('HTTPPROXY_MONGODB_', '').lower(), v),
+            filter(lambda x: x[0].startswith('HTTPPROXY_MONGODB_'),
+                   self.settings.items())
         ))

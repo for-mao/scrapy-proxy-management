@@ -1,3 +1,4 @@
+import logging
 from itertools import starmap
 from typing import Dict
 from typing import Tuple
@@ -9,6 +10,8 @@ from scrapy.spiders import Spider
 
 from . import BaseProxyStorage
 
+logger = logging.getLogger(__name__)
+
 
 class EnvironmentProxyStorage(BaseProxyStorage):
     def __init__(self, settings: Settings, auth_encoding: str, mw):
@@ -19,12 +22,12 @@ class EnvironmentProxyStorage(BaseProxyStorage):
     def open_spider(self, spider: Spider):
         self._load_proxies()
 
-        self.log.info(
+        logger.info(
             'Proxy storage by environment variables is opening.'
         )
 
     def close_spider(self, spider: Spider):
-        self.log.info('Proxy storage by environment variables is closed')
+        logger.info('Proxy storage by environment variables is closed')
 
     def proxy_bypass(self, host: str, proxies=None) -> bool:
         return proxy_bypass(host=host, proxies=proxies)

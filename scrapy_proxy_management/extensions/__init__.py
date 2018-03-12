@@ -13,8 +13,11 @@ from urllib.request import _parse_proxy
 
 from scrapy.crawler import Crawler
 from scrapy.http import Request
+from scrapy.http import Response
 from scrapy.settings import Settings
 from scrapy.spiders import Spider
+
+logger = logging.getLogger(__name__)
 
 
 def basic_auth_header(
@@ -31,9 +34,7 @@ class BaseProxyStorage(metaclass=ABCMeta):
         self.auth_encoding = auth_encoding
         self.settings = settings
         self.mw = mw
-        self.log = logging.getLogger(
-            '{}.{}'.format(self.__module__, self.__class__.__name__)
-        )
+        self.stats = mw.stats
         self._proxy: Dict[str, List[Tuple[bytes, str]]] = None
         self.proxies: Dict[str, Iterator[Tuple[bytes, str], None, None]] = None
 
@@ -57,7 +58,10 @@ class BaseProxyStorage(metaclass=ABCMeta):
     def close_spider(self, spider: Spider):
         pass
 
-    def invalidate_proxy(self, spider: Spider, request: Request, **kwargs):
+    def invalidate_proxy(
+            self, request: Request, response: Response, exception: Exception,
+            spider: Spider, **kwargs
+    ):
         raise NotImplementedError
 
     @abstractmethod

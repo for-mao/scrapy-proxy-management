@@ -251,10 +251,10 @@ class TestSettingsHttpProxyMiddleware(TestCase):
                 self.assertEqual(req.meta, {})
 
     def test_proxies(self):
-        http_proxy_1 = 'http://proxy.for.https.1:8080'
-        http_proxy_2 = 'http://proxy.for.https.2:8080'
-        https_proxy_1 = 'https://proxy.for.http.1:3128'
-        https_proxy_2 = 'https://proxy.for.http.2:3128'
+        http_proxy_1 = 'https://proxy.for.http.1:3128'
+        http_proxy_2 = 'https://proxy.for.http.2:3128'
+        https_proxy_1 = 'http://proxy.for.https.1:8080'
+        https_proxy_2 = 'http://proxy.for.https.2:8080'
 
         settings: Settings = Settings({
             **self.settings,
@@ -500,8 +500,13 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
 
         'HTTPPROXY_ENABLED': True,
 
+        'HTTPPROXY_MONGODB_USERNAME': 'test',
+        'HTTPPROXY_MONGODB_PASSWORD': 'test',
+
         'HTTPPROXY_MONGODB_HOST': 'localhost',
         'HTTPPROXY_MONGODB_PORT': 27017,
+
+        'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxy_management',
     }
 
     proxy_retrieve = {
@@ -520,7 +525,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_no_proxies(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_empty',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -535,7 +539,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_proxies(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -581,7 +584,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_proxy_precedence_meta(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -597,7 +599,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_proxy_auth(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_auth',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -624,7 +625,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_proxy_auth_empty_passwd(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_auth_empty_passwd',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -647,7 +647,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
         # utf-8 encoding
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_auth_encoding',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -695,7 +694,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_proxy_already_seted(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -709,7 +707,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_no_proxy(self):
         settings: Dict = {
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         }
 
@@ -719,9 +716,9 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_no_proxy_1',
         })
 
-        settings: Settings = Settings(_settings)
+        _settings: Settings = Settings(_settings)
 
-        with _open_spider(_spider, settings) as mw:
+        with _open_spider(_spider, _settings) as mw:
             req = Request('http://noproxy.com')
             self.assertIsNone(mw.process_request(req, _spider))
             self.assertNotIn('proxy', req.meta)
@@ -732,9 +729,9 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_no_proxy_2',
         })
 
-        settings: Settings = Settings(_settings)
+        _settings: Settings = Settings(_settings)
 
-        with _open_spider(_spider, settings) as mw:
+        with _open_spider(_spider, _settings) as mw:
             req = Request('http://noproxy.com')
             self.assertIsNone(mw.process_request(req, _spider))
             self.assertIn('proxy', req.meta)
@@ -745,9 +742,9 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_no_proxy_3',
         })
 
-        settings: Settings = Settings(_settings)
+        _settings: Settings = Settings(_settings)
 
-        with _open_spider(_spider, settings) as mw:
+        with _open_spider(_spider, _settings) as mw:
             req = Request('http://noproxy.com')
             self.assertIsNone(mw.process_request(req, _spider))
             self.assertNotIn('proxy', req.meta)
@@ -758,9 +755,9 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies_no_proxy_1',
         })
 
-        settings: Settings = Settings(_settings)
+        _settings: Settings = Settings(_settings)
 
-        with _open_spider(_spider, settings) as mw:
+        with _open_spider(_spider, _settings) as mw:
             req = Request(
                 'http://noproxy.com', meta={'proxy': 'http://proxy.com'}
             )
@@ -770,7 +767,6 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
     def test_invalidate_proxy(self):
         settings: Settings = Settings({
             **self.settings,
-            'HTTPPROXY_MONGODB_DATABASE': 'scrapy_proxies',
             'HTTPPROXY_MONGODB_COLLECTION': 'proxies',
             'HTTPPROXY_MONGODB_PROXY_RETRIEVER': deepcopy(self.proxy_retrieve)
         })
@@ -783,9 +779,10 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
                       req.headers.get('Proxy-Authorization'),
                       req.meta['proxy'])
 
-            self.assertIsNone(mw.proxy_invalidated(_spider, req))
+            self.assertIsNone(mw.proxy_invalidated(request=req, spider=_spider))
 
-            self.assertIn(_proxy, mw.storage.invalidate_proxies)
+            self.assertIn(_proxy, mw.storage.proxies_invalidated)
 
             mw.storage.strategy.reload_proxies()
+
             self.assertNotIn(_proxy, mw.storage.proxies)
