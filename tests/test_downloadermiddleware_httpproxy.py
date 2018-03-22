@@ -29,12 +29,12 @@ def _open_spider(
         crawler=crawler, auth_encoding=auth_encoding
     )
 
-    middleware.spider_opened(spider)
+    middleware.open_spider(spider)
 
     try:
         yield middleware
     finally:
-        middleware.spider_closed(spider)
+        middleware.close_spider(spider)
 
 
 class TestDefaultHttpProxyMiddleware(TestCase):
@@ -218,22 +218,10 @@ class TestDefaultHttpProxyMiddleware(TestCase):
             self.assertIsNone(mw.process_request(req, _spider))
             self.assertEqual(req.meta, {'proxy': 'http://proxy.com'})
 
-    def test_invalidate_proxy(self):
-        os.environ['http_proxy'] = http_proxy = 'https://proxy.for.http:3128'
-        os.environ['https_proxy'] = https_proxy = 'http://proxy.for.https:8080'
-        os.environ.pop('file_proxy', None)
-
-        with _open_spider(_spider, Settings()) as mw:
-            request = Request('http://e.com')
-            self.assertRaises(
-                NotImplementedError,
-                mw.proxy_invalidated, spider=_spider, request=request
-            )
-
 
 class TestSettingsHttpProxyMiddleware(TestCase):
     settings = {
-        'HTTPPROXY_STORAGE': 'scrapy_proxy_management.extensions.settings_http_proxy.SettingsProxyStorage',
+        'HTTPPROXY_STORAGE': 'scrapy_proxy_management.storages.settings_storage.SettingsStorage',
     }
 
     def test_no_proxies(self):
@@ -471,32 +459,11 @@ class TestSettingsHttpProxyMiddleware(TestCase):
             self.assertIsNone(mw.process_request(req, _spider))
             self.assertEqual(req.meta, {'proxy': 'http://proxy.com'})
 
-    def test_invalidate_proxy(self):
-        http_proxy_1 = 'http://proxy.for.https.1:8080'
-        http_proxy_2 = 'http://proxy.for.https.2:8080'
-        https_proxy_1 = 'https://proxy.for.http.1:3128'
-        https_proxy_2 = 'https://proxy.for.http.2:3128'
-
-        settings: Settings = Settings({
-            **self.settings,
-            'HTTPPROXY_ENABLED': True,
-            'HTTPPROXY_PROXIES': {
-                'http': [http_proxy_1, http_proxy_2],
-                'https': [https_proxy_1, https_proxy_2]
-            }
-        })
-
-        with _open_spider(_spider, settings) as mw:
-            request = Request('http://e.com')
-            self.assertRaises(
-                NotImplementedError,
-                mw.proxy_invalidated, spider=_spider, request=request
-            )
-
 
 class TestMongoDBHttpProxyMiddleware(TestCase):
     settings = {
-        'HTTPPROXY_STORAGE': 'scrapy_proxy_management.extensions.mongodb_http_proxy.MongoDBSyncProxyStorage',
+        'HTTPPROXY_STRATEGY': 'scrapy_proxy_management.strategies.mongodb_strategy.MongoDBStrategy',
+        'HTTPPROXY_STORAGE': 'scrapy_proxy_management.storages.mongodb_storage.MongoDBSyncStorage',
 
         'HTTPPROXY_ENABLED': True,
 
@@ -773,16 +740,18 @@ class TestMongoDBHttpProxyMiddleware(TestCase):
 
         with _open_spider(_spider, settings) as mw:
             req = Request('http://e.com')
+            scheme = urlparse(req.url).scheme
+
             mw.process_request(req, _spider)
 
-            _proxy = (urlparse(req.url).scheme,
-                      req.headers.get('Proxy-Authorization'),
-                      req.meta['proxy'])
+            proxy = (scheme,
+                     req.headers.get('Proxy-Authorization'),
+                     req.meta['proxy'])
 
-            self.assertIsNone(mw.proxy_invalidated(request=req, spider=_spider))
+            self.assertIsNone(mw.invalidate_proxy(request=req, spider=_spider))
 
-            self.assertIn(_proxy, mw.storage.proxies_invalidated)
+            self.assertIn(proxy, mw.storage.proxies_invalidated)
 
-            mw.storage.strategy.reload_proxies()
+            mw.strategy.reload_proxies(spider=_spider)
 
-            self.assertNotIn(_proxy, mw.storage.proxies)
+            self.assertNotIn(proxy[1:2], mw.storage.proxies[scheme])

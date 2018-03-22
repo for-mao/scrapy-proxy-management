@@ -1,6 +1,12 @@
+import base64
 from contextlib import contextmanager
+from copy import copy
 from typing import Any
 from typing import Generator
+from typing import Tuple
+from urllib.parse import unquote
+from urllib.parse import urlunparse
+from urllib.request import _parse_proxy
 
 from scrapy.http import Request
 from scrapy.http import Response
@@ -18,6 +24,27 @@ def unfreeze_settings(settings: Settings):
         yield settings
     finally:
         settings.frozen = original_status
+
+
+def basic_auth_header(
+        username: str, password: str, auth_encoding: str
+) -> bytes:
+    return base64.b64encode(bytes(
+        '{}:{}'.format(unquote(username), unquote(password)),
+        encoding=auth_encoding
+    )).strip()
+
+
+def get_proxy(auth_encoding, url: str, orig_type: str) -> Tuple[bytes, str]:
+    proxy_type, user, password, host_port = _parse_proxy(url)
+    proxy_url: str = urlunparse((
+        proxy_type or orig_type, host_port, '', '', '', ''
+    ))
+    credentials: bytes = (
+        basic_auth_header(user, password, auth_encoding)
+        if user else None
+    )
+    return credentials, proxy_url
 
 
 def inspect_block(
@@ -54,10 +81,19 @@ def _inspect_block(
 def recycle_request(
         block_inspector_mw, request: Request, spider: Spider
 ) -> Request:
-    request.meta.pop('proxy')
-    request.headers.pop('Proxy-Authorization')
-    request.dont_filter = True
-    request.priority = request.priority + block_inspector_mw.settings.getint(
+    # req = deepcopy(request)
+    req = copy(request)
+    try:
+        req.meta.pop('proxy')
+    except KeyError as exc:
+        pass
+    try:
+        req.headers.pop('Proxy-Authorization')
+    except KeyError as exc:
+        pass
+
+    req.dont_filter = True
+    req.priority = req.priority + block_inspector_mw.settings.getint(
         'RETRY_PRIORITY_ADJUST'
     )
-    return request
+    return req

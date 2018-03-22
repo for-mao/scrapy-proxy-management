@@ -9,6 +9,10 @@ pattern_recaptcha = re.compile(
 )
 
 
+class GoogleRecaptchaException(Exception):
+    pass
+
+
 def _inspect_google_recaptcha(
         response: Response
 ) -> Generator[bool, None, None]:
@@ -17,5 +21,6 @@ def _inspect_google_recaptcha(
         yield _
 
 
-def inspect_google_recaptcha(response: Response) -> bool:
-    return any(_inspect_google_recaptcha(response))
+def inspect_google_recaptcha(response: Response):
+    if any(_inspect_google_recaptcha(response)):
+        raise GoogleRecaptchaException

@@ -1,0 +1,5 @@
+.. _topics-exceptions:
+
+==========
+Exceptions
+==========
