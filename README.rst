@@ -18,7 +18,7 @@ Scrapy Proxy Management
    :target: http://codecov.io/github/grammy-jiang/scrapy-proxy-management?branch=master
    :alt: Coverage report
 
-.. .. image:: https://img.shields.io/github/downloads/grammy-jiang/scrapy-proxy-management/total.svg
+.. image:: https://img.shields.io/github/downloads/grammy-jiang/scrapy-proxy-management/total.svg
    :target: https://github.com/grammy-jiang/scrapy-proxy-management
    :alt: Downloads
 
